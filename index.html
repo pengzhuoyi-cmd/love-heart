@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>❤️ 彭卓屹的情书</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a0f;
+    font-family: 'Courier New', 'Source Code Pro', 'Menlo', monospace;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  canvas {
+    position: fixed;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+
+  #bg-canvas { z-index: 1; }
+  #heart-canvas { z-index: 2; }
+  #spark-canvas { z-index: 3; pointer-events: auto; }
+
+  /* ---- 文字层 ---- */
+  #text-layer {
+    position: fixed;
+    z-index: 10;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #code-line {
+    color: #64ffda;
+    font-size: clamp(16px, 3vw, 24px);
+    text-shadow: 0 0 20px rgba(100,255,218,0.6);
+    white-space: nowrap;
+    min-height: 1.4em;
+    letter-spacing: 2px;
+  }
+
+  #code-line .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: #64ffda;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #love-title {
+    margin-top: 30px;
+    font-size: clamp(28px, 6vw, 56px);
+    font-weight: bold;
+    background: linear-gradient(135deg, #ff6b9d, #c44dff, #64b5f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradient-shift 3s ease infinite;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+    letter-spacing: 4px;
+  }
+  #love-title.show { opacity: 1; }
+
+  @keyframes gradient-shift {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(30deg); }
+  }
+
+  #sub-text {
+    margin-top: 16px;
+    color: rgba(255,255,255,0.55);
+    font-size: clamp(12px, 1.8vw, 16px);
+    letter-spacing: 3px;
+    opacity: 0;
+    transition: opacity 1.5s ease 1s;
+  }
+  #sub-text.show { opacity: 1; }
+
+  /* ---- 数学公式 ---- */
+  #math-formula {
+    position: fixed;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: rgba(255,255,255,0.35);
+    font-size: clamp(10px, 1.2vw, 13px);
+    letter-spacing: 1px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s ease 2.5s;
+  }
+  #math-formula.show { opacity: 1; }
+
+  /* ---- 计数器 ---- */
+  #days-counter {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    z-index: 10;
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.5s ease 3s;
+  }
+  #days-counter.show { opacity: 1; }
+  #days-counter span {
+    color: #ff6b9d;
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  /* ---- 底部提示 ---- */
+  #hint {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: rgba(255,255,255,0.3);
+    font-size: 12px;
+    letter-spacing: 1px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1s ease 4s;
+    animation: hint-pulse 2s ease-in-out infinite;
+  }
+  #hint.show { opacity: 1; }
+  @keyframes hint-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="heart-canvas"></canvas>
+<canvas id="spark-canvas"></canvas>
+
+<div id="text-layer">
+  <div id="code-line"></div>
+  <div id="love-title">❤️ 我 爱 你 ❤️</div>
+  <div id="sub-text">—— 来自彭卓屹的浪漫 ——</div>
+</div>
+
+<div id="math-formula">x = 16 sin³(t)  ·  y = 13cos(t) − 5cos(2t) − 2cos(3t) − cos(4t)</div>
+<div id="days-counter">我们在一起 <span id="days-num">∞</span> 天</div>
+<div id="hint">✨ 点击屏幕 散落爱心 ✨</div>
+
+<script>
+// ==================== 工具函数 ====================
+const rand = (min, max) => Math.random() * (max - min) + min;
+const randInt = (min, max) => Math.floor(rand(min, max + 1));
+const TWO_PI = Math.PI * 2;
+
+// ==================== 背景星空画布 ====================
+(() => {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  let w, h;
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+    initStars();
+  }
+
+  function initStars() {
+    const count = Math.floor(w * h * 0.0008);
+    stars = [];
+    for (let i = 0; i < count; i++) {
+      stars.push({
+        x: rand(0, w),
+        y: rand(0, h),
+        r: rand(0.3, 2),
+        alpha: rand(0.3, 1),
+        twinkleSpeed: rand(0.005, 0.03),
+        twinkleOffset: rand(0, TWO_PI),
+      });
+    }
+  }
+
+  function draw(timestamp) {
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      const a = s.alpha * (0.5 + 0.5 * Math.sin(timestamp * s.twinkleSpeed + s.twinkleOffset));
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, TWO_PI);
+      ctx.fillStyle = `rgba(200,210,255,${a})`;
+      ctx.fill();
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+// ==================== 爱心粒子画布 ====================
+(() => {
+  const canvas = document.getElementById('heart-canvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+  const particles = [];
+  const PARTICLE_COUNT = 600;
+
+  // 心形参数方程
+  function heartX(t) {
+    return 16 * Math.pow(Math.sin(t), 3);
+  }
+  function heartY(t) {
+    return 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+  }
+
+  class HeartParticle {
+    constructor() {
+      this.reset();
+      // 初始随机进度
+      this.progress = rand(0, 1);
+      this.updatePosition();
+    }
+
+    reset() {
+      this.progress = 0;
+      this.baseScale = rand(0.7, 1.3);
+      this.scaleOffset = rand(0, TWO_PI);
+      this.color = rand(0, 1) < 0.5
+        ? `hsl(${rand(330, 360)}, ${rand(70, 100)}%, ${rand(50, 80)}%)`
+        : `hsl(${rand(270, 300)}, ${rand(60, 90)}%, ${rand(55, 85)}%)`;
+      this.size = rand(1.5, 4);
+      this.alpha = rand(0.4, 1);
+    }
+
+    updatePosition() {
+      const t = this.progress * TWO_PI;
+      const scale = 12 * this.baseScale + Math.sin(this.progress * TWO_PI * 3 + this.scaleOffset) * 1.5;
+      this.x = heartX(t) * scale + w / 2;
+      this.y = -heartY(t) * scale + h / 2;
+    }
+
+    update(speed) {
+      this.progress += speed * (0.0003 + rand(0, 0.0002));
+      if (this.progress > 1) {
+        this.progress -= 1;
+        this.reset();
+      }
+      this.updatePosition();
+    }
+
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, TWO_PI);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = this.alpha;
+      ctx.fill();
+
+      // 光晕
+      const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 2.5);
+      grad.addColorStop(0, this.color);
+      grad.addColorStop(1, 'transparent');
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size * 2.5, 0, TWO_PI);
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = this.alpha * 0.35;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  // 初始化粒子
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push(new HeartParticle());
+  }
+
+  function draw(timestamp) {
+    ctx.clearRect(0, 0, w, h);
+
+    // 柔和的中心光晕
+    const glow = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.min(w, h) * 0.4);
+    glow.addColorStop(0, 'rgba(255, 100, 150, 0.06)');
+    glow.addColorStop(0.5, 'rgba(180, 70, 220, 0.03)');
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
+    const speed = 1 + Math.sin(timestamp * 0.0003) * 0.5;
+
+    for (const p of particles) {
+      p.update(speed);
+      p.draw(ctx);
+    }
+
+    // 连接线 - 相邻粒子间画线
+    ctx.globalAlpha = 0.04;
+    ctx.strokeStyle = '#ff6b9d';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < particles.length; i += 3) {
+      const p1 = particles[i];
+      const p2 = particles[(i + 5) % particles.length];
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      if (Math.abs(dx * dx + dy * dy) < 2500) {
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+// ==================== 点击爱心特效画布 ====================
+(() => {
+  const canvas = document.getElementById('spark-canvas');
+  const ctx = canvas.getContext('2d');
+  let w, h;
+
+  const sparks = [];
+
+  class Spark {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      const angle = rand(0, TWO_PI);
+      const speed = rand(2, 7);
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed - rand(2, 5);
+      this.life = 1;
+      this.decay = rand(0.008, 0.025);
+      this.size = rand(3, 10);
+      this.color = `hsl(${rand(330, 10)}, 100%, ${rand(55, 75)}%)`;
+      this.shape = rand(0, 1) < 0.5 ? 'heart' : 'circle';
+    }
+
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.05; // 重力
+      this.life -= this.decay;
+      this.size *= 0.995;
+    }
+
+    draw(ctx) {
+      if (this.life <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.translate(this.x, this.y);
+
+      if (this.shape === 'heart') {
+        ctx.scale(this.size / 20, this.size / 20);
+        ctx.beginPath();
+        ctx.moveTo(0, -5);
+        ctx.bezierCurveTo(-10, -15, -20, 0, 0, 12);
+        ctx.bezierCurveTo(20, 0, 10, -15, 0, -5);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, TWO_PI);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    get alive() { return this.life > 0; }
+  }
+
+  function resize() {
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  function burst(x, y, count = 20) {
+    for (let i = 0; i < count; i++) {
+      sparks.push(new Spark(x, y));
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, w, h);
+
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      sparks[i].update();
+      sparks[i].draw(ctx);
+      if (!sparks[i].alive) sparks.splice(i, 1);
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  canvas.addEventListener('click', (e) => {
+    burst(e.clientX, e.clientY, randInt(15, 30));
+  });
+
+  // 触摸支持
+  canvas.addEventListener('touchstart', (e) => {
+    for (const touch of e.touches) {
+      burst(touch.clientX, touch.clientY, randInt(10, 20));
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+
+  // 初始绽放一波
+  setTimeout(() => burst(w / 2, h / 2, 40), 500);
+})();
+
+// ==================== 打字机效果 ====================
+(() => {
+  const el = document.getElementById('code-line');
+  const messages = [
+    'const love = new Promise((resolve) => {',
+    '  while (true) {',
+    '    heart.beat(forYou);',
+    '    resolve(forever);',
+    '  }',
+    '});',
+    '',
+    '// love.run() ❤️',
+  ];
+
+  const fullText = messages.join('\n');
+  let index = 0;
+
+  function typeChar() {
+    if (index < fullText.length) {
+      const c = fullText[index];
+      // 处理换行
+      if (c === '\n') {
+        el.innerHTML = el.innerHTML.replace('<span class="cursor"></span>', '') + '<br>' + '<span class="cursor"></span>';
+      } else {
+        el.innerHTML = el.innerHTML.replace('<span class="cursor"></span>', '') + c + '<span class="cursor"></span>';
+      }
+      index++;
+      const delay = c === '\n' ? rand(120, 250) : rand(40, 100);
+      setTimeout(typeChar, delay);
+    } else {
+      // 打字完成，显示标题
+      setTimeout(() => {
+        document.getElementById('love-title').classList.add('show');
+        document.getElementById('sub-text').classList.add('show');
+        document.getElementById('math-formula').classList.add('show');
+        document.getElementById('days-counter').classList.add('show');
+        document.getElementById('hint').classList.add('show');
+      }, 500);
+    }
+  }
+
+  // 初始设置光标
+  el.innerHTML = '<span class="cursor"></span>';
+
+  // 延迟开始
+  setTimeout(typeChar, 800);
+})();
+
+// ==================== 在一起天数计算 ====================
+(() => {
+  // 🔧 在这里修改你们的纪念日！
+  // 格式: new Date('YYYY-MM-DD')
+  const anniversary = new Date('2026-04-03');
+
+  const daysEl = document.getElementById('days-num');
+  function updateDays() {
+    const now = new Date();
+    const diff = Math.floor((now - anniversary) / (1000 * 60 * 60 * 24));
+    daysEl.textContent = diff > 0 ? diff : '∞';
+  }
+  updateDays();
+  setInterval(updateDays, 60000); // 每分钟更新
+})();
+</script>
+</body>
+</html>
